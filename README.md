@@ -1,2 +1,2 @@
 # snake-game
-Snake, the classic arcade game, recreated in python
+Snake, the classic arcade game, recreated with python
