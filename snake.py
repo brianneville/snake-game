@@ -13,18 +13,18 @@ speed = block_dim
 saved_velocity = (0, 0) # velcoity as given by the keys pressed by the player
 grey,red, col_head = (47, 79, 79), (255, 90, 0),(200, 255, 0)
 start = [0]*2
-xlines = width/block_dim
+half_b_dim = int(block_dim/2)
 SURFACE = pg.display.set_mode(size)
 pg.display.set_caption("Snake")
 gameover = False
 
 
 def newgame():
-    global gameover, score,blocks, apple_y, apple_x, start,saved_velocity
+    global gameover, score,blocks, apple_y, apple_x, start, saved_velocity
     gameover = False
     score = 0
-    start[0] = screenscale * random.randint((2 * block_dim) / 10, xlines) - 2 * block_dim  # x start
-    start[1] = screenscale * random.randint((2 * block_dim) / 10, xlines) - 2 * block_dim  # y start
+    start[0] = block_dim * np.random.randint(1, screenscale-2)  # x start
+    start[1] = block_dim * np.random.randint(1, screenscale-2)  # y start
 
     pg.display.set_caption("Snake")
     blocks = np.array([[start[0], start[1]]])
@@ -51,7 +51,7 @@ def play():
                 movesnake()
                 checkcollisions()
                 if new_spawn:
-                    assignAppleCoords()
+                    assign_apple_coords()
                     new_spawn = False
 
             SURFACE.fill(grey)
@@ -101,46 +101,59 @@ def checkcollisions():
     global blocks, saved_velocity, gameover, score
     # check if outside boundaries
     h = blocks[0]
-    prev = h + saved_velocity
-    if h[0] >= width - block_dim or h[0] <= 0 or h[1] >= height - block_dim or h[1] <= 0:
+    if h[0] > width - block_dim or h[0] < 0:
         gameover = True
-    elif SURFACE.get_at((int(prev[0]), int(prev[1]))) == (200, 255, 0) and saved_velocity != (0, 0):
+    elif h[1] > height - block_dim or h[1] < 0:
         gameover = True
+
     else:
-        for b in blocks:
-            if b[0] == apple_x - block_dim/2 and b[1] == apple_y-block_dim/2:
-                # add to tail
-                blocks = np.concatenate((np.array([[apple_x - block_dim/2, apple_y-block_dim/2]]), blocks), axis=0)
-                assignAppleCoords()
-                score += 1
-    if gameover:
+        mask = blocks == blocks[0]
+        copies = np.array(mask.all(axis=1))
+        if copies.sum(axis=0) > 1:
+            gameover = True
+
+    if not gameover:
+        if blocks[0][0] == apple_x - half_b_dim and blocks[0][1] == apple_y - half_b_dim:
+            # add to tail, this will happen if an apple is hit
+            blocks = np.concatenate((np.array([[apple_x - half_b_dim, apple_y - half_b_dim]]), blocks), axis=0)
+            assign_apple_coords()
+            score += 1
+    else:
         saved_velocity = (0, 0)
 
 
-def assignAppleCoords():
-    global apple_x, apple_y
-    x = [0] * 2
+def assign_apple_coords():
+    global apple_x, apple_y, blocks
+    x_base = [0]*2
+    x = [[0]] * 2  # additional dimension needed to match dimenstion of blocks for np.all call
     redo = True
     while redo:
         redo = False
-        x[0] = block_dim * random.randint((2 * block_dim) / 10, xlines) - int(block_dim / 2)  # x start
-        x[1] = block_dim * random.randint((2 * block_dim) / 10, xlines) - int(block_dim / 2)  # y start
-        if x[0] == start[0] or x[1] == start[1]:
+        x_base[0] = block_dim * np.random.randint(2, screenscale - 2) - half_b_dim
+        np.random.seed(int(time.time()))
+        x_base[1] = block_dim * random.randint(2, screenscale - 2) - half_b_dim  # y start
+        if x_base[0] == start[0] or x_base[1] == start[1]:
             redo = True
-        if x[0] + block_dim >= width or x[1] + block_dim >= height:
+        if x_base[0] + block_dim >= width or x_base[1] + block_dim >= height:
             redo = True
 
-    if start[0] % 20 == x[0] % 20:
-        x[0] = x[0] + int(block_dim / 2)
+    if start[0] % 20 == x_base[0] % 20:
+        x_base[0] = x_base[0] + half_b_dim
 
-    if start[1] % 20 == x[1] % 20:
-        x[1] = x[1] + int(block_dim / 2)
+    if start[1] % 20 == x_base[1] % 20:
+        x_base[1] = x_base[1] + half_b_dim
 
-    if SURFACE.get_at((x[0], x[1])) == (200, 255, 0):
-        assignAppleCoords()
+    x[0][0] = x_base[0]
+    x[1][0] = x_base[1]
+
+    # ensure apple isnt spawned inside snake
+    xn = np.array(x).ravel()
+    copies = np.ma.masked_where(blocks == xn, blocks)
+    if len(copies) < len(blocks):
+        assignapplecoords()
     else:
-        apple_x = x[0]
-        apple_y = x[1]
+        apple_x = x_base[0]
+        apple_y = x_base[1]
 
 
 newgame()
